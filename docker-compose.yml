@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+web:
+image: "${DOCKER_IMAGE:-REPLACE_WITH_IMAGE}"
+restart: always
+ports:
+- "8000:8000"
+environment:
+- ENV=production
