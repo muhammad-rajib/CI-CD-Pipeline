@@ -53,7 +53,7 @@ jobs:
 
           services:
             web:
-              image: "${1:-REPLACE_WITH_IMAGE}"
+              image: "${DOCKER_IMAGE}"
               container_name: fastapi_app
               restart: always
               ports:
@@ -76,13 +76,22 @@ jobs:
 
           : "${DOCKER_IMAGE:?Need to set DOCKER_IMAGE}"
 
+          # Export for docker-compose
+          export DOCKER_IMAGE
+
+          # Login to Docker Hub if using private image
           if [ -n "${DOCKERHUB_USERNAME}" ] && [ -n "${DOCKERHUB_TOKEN}" ]; then
             echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
           fi
 
+          # Pull latest image & restart container
           docker-compose pull
           docker-compose up -d --remove-orphans
+
+          # Cleanup old images
           docker image prune -f
+
+          # Reload Nginx if used
           sudo systemctl reload nginx || true
 
           echo "✅ Deployment successful: $DOCKER_IMAGE"
@@ -90,6 +99,6 @@ jobs:
 
           chmod +x deploy.sh
 
-          # Run deploy.sh with arguments
+          # Run deploy.sh with Docker image and credentials
           ./deploy.sh "${{ secrets.DOCKERHUB_USERNAME }}/fastapi-demo:latest" "${{ secrets.DOCKERHUB_USERNAME }}" "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
