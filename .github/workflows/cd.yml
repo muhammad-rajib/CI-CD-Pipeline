@@ -56,7 +56,22 @@ jobs:
           mkdir -p "$APP_DIR"
           cd "$APP_DIR"
 
-          # Overwrite deploy.sh dynamically with latest version
+          # Overwrite docker-compose.yml dynamically
+          cat > docker-compose.yml << 'COMPOSE_EOF'
+          version: '3.8'
+
+          services:
+            web:
+              image: "${DOCKER_IMAGE:-REPLACE_WITH_IMAGE}"
+              container_name: fastapi_app
+              restart: always
+              ports:
+                - "8000:8000"
+              environment:
+                ENV: production
+          COMPOSE_EOF
+
+          # Overwrite deploy.sh dynamically
           cat > deploy.sh << 'DEPLOY_EOF'
           #!/usr/bin/env bash
           set -e
@@ -66,12 +81,12 @@ jobs:
 
           : "${DOCKER_IMAGE:?Need to set DOCKER_IMAGE}"
 
-          # Login to Docker Hub if private
+          # Login to Docker Hub if using private image
           if [ -n "${DOCKERHUB_USERNAME}" ] && [ -n "${DOCKERHUB_TOKEN}" ]; then
             echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
           fi
 
-          # Pull latest Docker image & restart container
+          # Pull latest image & restart container
           docker-compose pull
           docker-compose up -d --remove-orphans
 
@@ -84,8 +99,6 @@ jobs:
           echo "✅ Deployment successful: $DOCKER_IMAGE"
           DEPLOY_EOF
 
-          # Make deploy.sh executable and run it
           chmod +x deploy.sh
           ./deploy.sh
           EOF
-          # End of SSH block
