@@ -34,10 +34,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-demo:${{ github.sha }}
 
       - name: Deploy on EC2 via SSH
-        env:
-          DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/fastapi-demo:latest
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
@@ -46,11 +42,6 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash -s << 'EOF'
           set -e
-
-          # Export environment variables inside SSH session
-          export DOCKER_IMAGE="${DOCKER_IMAGE}"
-          export DOCKERHUB_USERNAME="${DOCKERHUB_USERNAME}"
-          export DOCKERHUB_TOKEN="${DOCKERHUB_TOKEN}"
 
           APP_DIR="/home/ubuntu/app"
           mkdir -p "$APP_DIR"
@@ -62,7 +53,7 @@ jobs:
 
           services:
             web:
-              image: "${DOCKER_IMAGE:-REPLACE_WITH_IMAGE}"
+              image: "${1:-REPLACE_WITH_IMAGE}"
               container_name: fastapi_app
               restart: always
               ports:
@@ -79,26 +70,26 @@ jobs:
           APP_DIR="/home/ubuntu/app"
           cd "$APP_DIR"
 
+          DOCKER_IMAGE="$1"
+          DOCKERHUB_USERNAME="$2"
+          DOCKERHUB_TOKEN="$3"
+
           : "${DOCKER_IMAGE:?Need to set DOCKER_IMAGE}"
 
-          # Login to Docker Hub if using private image
           if [ -n "${DOCKERHUB_USERNAME}" ] && [ -n "${DOCKERHUB_TOKEN}" ]; then
             echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
           fi
 
-          # Pull latest image & restart container
           docker-compose pull
           docker-compose up -d --remove-orphans
-
-          # Cleanup old images
           docker image prune -f
-
-          # Reload Nginx if used
           sudo systemctl reload nginx || true
 
           echo "✅ Deployment successful: $DOCKER_IMAGE"
           DEPLOY_EOF
 
           chmod +x deploy.sh
-          ./deploy.sh
+
+          # Run deploy.sh with arguments
+          ./deploy.sh "${{ secrets.DOCKERHUB_USERNAME }}/fastapi-demo:latest" "${{ secrets.DOCKERHUB_USERNAME }}" "${{ secrets.DOCKERHUB_TOKEN }}"
           EOF
